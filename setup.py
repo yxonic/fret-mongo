@@ -19,7 +19,8 @@ setup(
     python_requires='>=3.4',
     install_requires=[
         'fret>=0.3.3',
-        'pymongo'
+        'pymongo',
+        'pandas',
     ],
     classifiers=[
         "Programming Language :: Python :: 3",
