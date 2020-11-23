@@ -3,9 +3,28 @@ from collections.abc import Iterable
 from fret import argspec
 
 
-def collect(regex, last=False):
+def collect(collection, regex=None, last=False):
     summarizer = Summarizer()
-    # TODO: fetch from mongodb
+    filter = {}
+    if regex is not None:
+        filter['ws'] = {'$regex': regex}
+    if last:
+        docs = list(collection.aggregate(
+            [
+                {'$sort': {'ws': 1, 'date': 1}},
+                {
+                    '$group':
+                    {
+                        '_id': '$ws',
+                        'id': {'$last': '$_id'}
+                    }
+                }
+            ]
+        ))
+        ids = [doc['id'] for doc in docs]
+        filter['_id'] = {'$in': ids}
+    for data in collection.find(filter):
+        data.add(**data)
     return summarizer
 
 
@@ -89,62 +108,67 @@ class Summarizer:
         return df
 
 
-def summarize(
-    rows=argspec(
-        help='row names',
-        nargs='+', default=None
-    ),
-    columns=argspec(
-        help='column names',
-        nargs='*', default=None
-    ),
-    row_selection=argspec(
-        help='selection of row headers, different headers separated '
-             'by _ (eg: -rs H1 H2 _ h1 h2)',
-        nargs='+', default=None
-    ),
-    column_selection=argspec(
-        help='selection of column headers, different headers '
-             'separated by _ (eg: -rs C1 C2 _ c1 c2)',
-        nargs='+', default=None
-    ),
-    scheme=('best', 'output scheme',
-            ['best', 'mean', 'mean_with_error']),
-    topk=(-1, 'if >0, best k results will be taken into account'),
-    regex=(None, 'regex to filter workspace'),
-    format=(None, 'float point format spec (eg: .4f)'),
-    output=(None, 'output format', ['html', 'latex']),
-    last=(False, 'only retrieve last record in each result directory')
-):
-    """Command ``summarize``.
-    Summarize all results recorded by ``ws.record``.
-    """
-    summarizer = collect(regex, last)
-    if len(summarizer) == 0:
-        raise ValueError('no results found')
+def get_summarize_command(db):
+    def summarize(
+        collection=argspec(help='collection name', required=True),
+        rows=argspec(
+            help='row names',
+            nargs='+', default=None
+        ),
+        columns=argspec(
+            help='column names',
+            nargs='*', default=None
+        ),
+        row_selection=argspec(
+            help='selection of row headers, different headers separated '
+                 'by _ (eg: -rs H1 H2 _ h1 h2)',
+            nargs='+', default=None
+        ),
+        column_selection=argspec(
+            help='selection of column headers, different headers '
+                 'separated by _ (eg: -rs C1 C2 _ c1 c2)',
+            nargs='+', default=None
+        ),
+        scheme=('best', 'output scheme',
+                ['best', 'mean', 'mean_with_error']),
+        topk=(-1, 'if >0, best k results will be taken into account'),
+        regex=(None, 'regex to filter workspace'),
+        format=(None, 'float point format spec (eg: .4f)'),
+        output=(None, 'output format', ['html', 'latex']),
+        last=(False, 'only retrieve last record in each result directory')
+    ):
+        """Command ``summarize``.
+        Summarize all results recorded by ``ws.record``.
+        """
+        summarizer = collect(db[collection], regex, last)
+        if len(summarizer) == 0:
+            raise ValueError('no results found')
 
-    row_order = row_selection and _selection_to_order(row_selection)
-    column_order = column_selection and _selection_to_order(column_selection)
+        row_order = row_selection and _selection_to_order(row_selection)
+        column_order = column_selection and \
+            _selection_to_order(column_selection)
 
-    schemes = []
-    if scheme == 'mean_with_error':
-        schemes.append(lambda x: (x.mean(), x.std()))
-        spec = ':' + format if format else ''
-        fmt = r'{%s}$\pm${%s}' % (spec, spec) if output == 'latex' \
-            else '{%s}±{%s}' % (spec, spec)
-        schemes.append(lambda x: fmt.format(*x))
-    else:
-        schemes.append(scheme)
-        if format:
-            fmt = '{:%s}' % format
-            schemes.append(lambda x: fmt.format(x))
-    df = summarizer.summarize(rows, columns, row_order, column_order,
-                              scheme=schemes, topk=topk)
-    if output == 'latex':
-        return df.to_latex(escape=False)
-    if output == 'html':
-        return df.to_html(escape=False)
-    return df
+        schemes = []
+        if scheme == 'mean_with_error':
+            schemes.append(lambda x: (x.mean(), x.std()))
+            spec = ':' + format if format else ''
+            fmt = r'{%s}$\pm${%s}' % (spec, spec) if output == 'latex' \
+                else '{%s}±{%s}' % (spec, spec)
+            schemes.append(lambda x: fmt.format(*x))
+        else:
+            schemes.append(scheme)
+            if format:
+                fmt = '{:%s}' % format
+                schemes.append(lambda x: fmt.format(x))
+        df = summarizer.summarize(rows, columns, row_order, column_order,
+                                  scheme=schemes, topk=topk)
+        if output == 'latex':
+            return df.to_latex(escape=False)
+        if output == 'html':
+            return df.to_html(escape=False)
+        return df
+
+    return summarize
 
 
 def _selection_to_order(selection):
