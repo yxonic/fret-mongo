@@ -18,7 +18,7 @@ setup(
     platforms='any',
     python_requires='>=3.4',
     install_requires=[
-        'fret>=0.3.3',
+        'fret>=0.3.4',
         'pymongo',
         'pandas',
     ],

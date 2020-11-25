@@ -14,7 +14,7 @@ class FretMongo(fret.common.Plugin):
 
     def apply(self, ws):
         def recorder(name):
-            return Recorder(ws, self.client.db[name])
+            return Recorder(ws, self.db[name])
 
         setattr(ws, 'recorder', recorder)
 
@@ -30,9 +30,9 @@ class Recorder:
         metrics = metrics.rstrip('+-') + ('-' if is_des else '+')
 
         data = {}
-        for name, cfg in self.config_dict().items():
+        for name, cfg in self.ws.config_dict().items():
             for k, v in cfg.items():
-                data[name + '.' + k] = v
+                data[name + ':' + k] = v
 
         data.update({'metrics': metrics, 'value': value})
         data.update(kwargs)

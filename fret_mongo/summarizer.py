@@ -24,7 +24,7 @@ def collect(collection, regex=None, last=False):
         ids = [doc['id'] for doc in docs]
         filter['_id'] = {'$in': ids}
     for data in collection.find(filter):
-        data.add(**data)
+        summarizer.add(**data)
     return summarizer
 
 
@@ -110,7 +110,7 @@ class Summarizer:
 
 def get_summarize_command(db):
     def summarize(
-        collection=argspec(help='collection name', required=True),
+        collection=argspec('collection', help='collection name'),
         rows=argspec(
             help='row names',
             nargs='+', default=None
